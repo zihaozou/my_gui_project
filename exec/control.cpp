@@ -9,9 +9,17 @@
 #include <dependency/glm/glm/gtc/matrix_transform.hpp>
 #include <dependency/glm/glm/gtc/type_ptr.hpp>
 #include <shader.h>
-//#include <camera.h>
+#include <camera.h>
 #include <stb_image.h>
 
+static int winWidth = 640;
+static int winHeight = 480;
+
+orbitCamera myCamera(0.0f, 2.0f, 3.0f, winWidth, winHeight);
+static double holdDownXPos;
+static double holdDownYPos;
+static double holdDownPitch;
+static double holdDownYaw;
 static void error_callback(int error, const char *description)
 {
     fprintf(stderr, "Error %d: %s\n", error, description);
@@ -30,6 +38,28 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
         glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
 
+static void cursor_position_callback(GLFWwindow *window, double xpos, double ypos)
+{
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+    {
+        float yawMove = 0.5f * 180.0f * (((float)(xpos - holdDownXPos)) / ((float)winWidth));
+        float pitchMove = 0.5f * 180.0f * (((float)(ypos - holdDownYPos)) / ((float)winHeight));
+        // std::cout << "pitch=" << pitchMove;
+        // std::cout << "yaw=" << yawMove << std::endl;
+        myCamera.setPitch(holdDownPitch - pitchMove);
+        myCamera.setYaw(holdDownYaw + yawMove);
+    }
+}
+void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
+{
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    {
+        std::cout << "in mbc" << std::endl;
+        glfwGetCursorPos(window, &holdDownXPos, &holdDownYPos);
+        holdDownPitch = myCamera.getPitch();
+        holdDownYaw = myCamera.getYaw();
+    }
+}
 GLFWwindow *GUIInit(void)
 {
     glfwSetErrorCallback(error_callback);
@@ -39,7 +69,7 @@ GLFWwindow *GUIInit(void)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow *window = glfwCreateWindow(640, 480, "My GUI", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(winWidth, winHeight, "My GUI", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewExperimental = true; // Needed for core profile
     if (glewInit() != GLEW_OK)
@@ -50,11 +80,13 @@ GLFWwindow *GUIInit(void)
         return nullptr;
     }
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-
-    // Dark blue background
+    // glfwSetInputMode(window, GLFW_STICKY_MOUSE_BUTTONS, GLFW_TRUE);
+    //  Dark blue background
     glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetKeyCallback(window, key_callback);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
     glEnable(GL_DEPTH_TEST);
     return window;
 }
@@ -159,15 +191,10 @@ int main(int, char **)
     stbi_image_free(data);
 
     // coord
-    glm::mat4 model = glm::mat4(1.0f);
-    glm::mat4 projection;
-    projection = glm::perspective(glm::radians(75.0f), 640.0f / 480.0f, 0.1f, 100.0f);
-    glm::mat4 view;
-    glm::vec3 cameraPos = glm::vec3(1.0f, 2.0f, 3.0f);
-    glm::vec3 cameraLook = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
-    view = glm::lookAt(cameraPos, cameraLook, cameraUp);
 
+    glm::mat4 model = glm::mat4(1.0f);
+    glm::mat4 view = myCamera.getView();
+    glm::mat4 projection = myCamera.getProjection();
     Shader ourShader("/home/zihao/Desktop/workspace/my_gui_project/data/shader/coord.vert", "/home/zihao/Desktop/workspace/my_gui_project/data/shader/coord.frag");
     ourShader.use();
     ourShader.setMat4("view", view);
@@ -185,12 +212,10 @@ int main(int, char **)
         glBindTexture(GL_TEXTURE_2D, texture2);
         // glBindVertexArray(VAO);
         ourShader.use();
-        glm::vec3 cameraPos = glm::vec3(1.0f, 2.0f, 3.0f);
-        glm::mat4 camRotate = glm::mat4(1.0f);
-        camRotate = glm::rotate(camRotate, (float)glfwGetTime() * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        cameraPos = glm::vec3(camRotate * glm::vec4(cameraPos.x, cameraPos.y, cameraPos.z, 1.0f));
-        view = glm::lookAt(cameraPos, cameraLook, cameraUp);
+        view = myCamera.getView();
+        projection = myCamera.getProjection();
         ourShader.setMat4("view", view);
+        ourShader.setMat4("projection", projection);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         // Swap buffers
         glfwSwapBuffers(window);

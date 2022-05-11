@@ -4,26 +4,64 @@
 #include <dependency/glm/glm/gtc/matrix_transform.hpp>
 #include <dependency/glm/glm/gtc/quaternion.hpp>
 #include <dependency/glm/glm/gtx/quaternion.hpp>
-#include <vector>
-
-// Defines several possible options for camera movement. Used as abstraction to stay away from window-system specific input methods
-
-// Default camera values
-const float YAW = -90.0f;
-const float PITCH = 0.0f;
-const float SPEED = 2.5f;
-const float SENSITIVITY = 0.1f;
-const float ZOOM = 45.0f;
-
-// An abstract camera class that processes input and calculates the corresponding Euler Angles, Vectors and Matrices for use in OpenGL
-class Camera
+#include <cmath>
+#include <dependency/glm/glm/gtx/string_cast.hpp>
+class orbitCamera
 {
 public:
     // camera Attributes
-    glm::mat4 projection;
-    glm::mat4 view;
+    orbitCamera(float initX, float initY, float initZ, float width, float height) : m_initCamPosition(initX, initY, initZ), m_width(width), m_height(height){};
+    glm::mat4 getView()
+    {
+        // std::cout << "x=" << m_eulerRotAngle.x << ", y=" << m_eulerRotAngle.y << ", z=" << m_eulerRotAngle.z << std::endl;
+        m_rotQuat = glm::quat(glm::radians(m_eulerRotAngle));
+        glm::vec3 camPos = m_rotQuat * m_initCamPosition * glm::inverse(m_rotQuat);
+        std::cout << glm::to_string(camPos) << std::endl;
+        glm::mat4 view = glm::lookAt(camPos, m_lookAtOrigin, upVector);
+        // std::cout << glm::to_string(view) << std::endl;
+        return view;
+    };
+    glm::mat4 getProjection()
+    {
+        glm::mat4 projection;
+        projection = glm::perspective(glm::radians(m_zoom), m_width / m_height, 0.1f, 200.0f);
+        return projection;
+    };
+    void setZoom(float zoom)
+    {
+        m_zoom = m_zoom + zoom;
+        if (m_zoom < 1.0f)
+            m_zoom = 1.0f;
+        if (m_zoom > 89.0f)
+            m_zoom = 89.0f;
+    }
+    void setYaw(float yaw)
+    {
+        m_eulerRotAngle.y = yaw;
+    }
+    void setPitch(float pitch)
+    {
+        m_eulerRotAngle.x = pitch;
+        // std::cout << "pitch=" << m_eulerRotAngle.x << std::endl;
+    };
+    float getPitch()
+    {
+        return m_eulerRotAngle.x;
+    };
+    float getYaw()
+    {
+        return m_eulerRotAngle.y;
+    };
+    ~orbitCamera(){};
     // constructor with vectors
 
 private:
-    quat MyQuaternion;
+    const glm::vec3 m_lookAtOrigin = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 m_eulerRotAngle = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 m_initCamPosition;
+    glm::vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::quat m_rotQuat;
+    float m_width;
+    float m_height;
+    float m_zoom = 75.0f;
 };
